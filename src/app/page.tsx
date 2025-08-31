@@ -1,103 +1,214 @@
-import Image from "next/image";
+"use client";
+
+import { useEffect, useState } from "react";
+import type { Item, User } from "@prisma/client";
+import {
+  Card,
+  CardHeader,
+  CardContent,
+  CardTitle,
+  CardDescription,
+} from "@/components/ui/card";
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from "@/components/ui/select";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner"
+
+interface Recommendation {
+  itemId: string;
+  score: number;
+}
+
+type Movie = {
+  title: string;
+  description: string;
+  poster: string;
+  release_date: string;
+  rating: number;
+};
 
 export default function Home() {
-  return (
-    <div className="font-sans grid grid-rows-[20px_1fr_20px] items-center justify-items-center min-h-screen p-8 pb-20 gap-16 sm:p-20">
-      <main className="flex flex-col gap-[32px] row-start-2 items-center sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={180}
-          height={38}
-          priority
-        />
-        <ol className="font-mono list-inside list-decimal text-sm/6 text-center sm:text-left">
-          <li className="mb-2 tracking-[-.01em]">
-            Get started by editing{" "}
-            <code className="bg-black/[.05] dark:bg-white/[.06] font-mono font-semibold px-1 py-0.5 rounded">
-              src/app/page.tsx
-            </code>
-            .
-          </li>
-          <li className="tracking-[-.01em]">
-            Save and see your changes instantly.
-          </li>
-        </ol>
+  const [recs, setRecs] = useState<Recommendation[]>([]);
+  const [items, setItems] = useState<Item[]>([]);
+  const [movies, setMovies] = useState<Record<string, Movie>>({});
+  const [users, setUsers] = useState<User[]>([]);
+  const [selectedUser, setSelectedUser] = useState<string>("");
+  const [loading, setLoading] = useState(true);
 
-        <div className="flex gap-4 items-center flex-col sm:flex-row">
-          <a
-            className="rounded-full border border-solid border-transparent transition-colors flex items-center justify-center bg-foreground text-background gap-2 hover:bg-[#383838] dark:hover:bg-[#ccc] font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 sm:w-auto"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={20}
-              height={20}
-            />
-            Deploy now
-          </a>
-          <a
-            className="rounded-full border border-solid border-black/[.08] dark:border-white/[.145] transition-colors flex items-center justify-center hover:bg-[#f2f2f2] dark:hover:bg-[#1a1a1a] hover:border-transparent font-medium text-sm sm:text-base h-10 sm:h-12 px-4 sm:px-5 w-full sm:w-auto md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Read our docs
-          </a>
+
+  // Fetch users
+  useEffect(() => {
+    const fetchUsers = async () => {
+      const res = await fetch("/api/users");
+      const data = await res.json();
+      setUsers(data.users);
+
+      if (data.users.length > 0) {
+        setSelectedUser(data.users[0].id);
+      }
+    };
+    fetchUsers();
+  }, []);
+
+  // Fetch recommendations + items + movie metadata
+  useEffect(() => {
+    if (!selectedUser) return;
+
+    const fetchData = async () => {
+      setLoading(true);
+      toast("Getting recommendations.")
+
+      try {
+        const res = await fetch(`/api/recommend/${selectedUser}`);
+        const data = await res.json();
+        setRecs(data.recommendations);
+
+        // Step 1: fetch items
+        const itemRequests = data.recommendations.map(async (rec: Recommendation) => {
+          const res1 = await fetch(`/api/items/${rec.itemId}`);
+          if (res1.ok) {
+            return await res1.json();
+          }
+          return null;
+        });
+
+        const fetchedItems: Item[] = (await Promise.all(itemRequests)).filter(Boolean);
+        setItems(fetchedItems);
+
+        // Step 2: fetch movie metadata for each item.title
+        const movieRequests = fetchedItems.map(async (item) => {
+          const movieRes = await fetch(`/api/movies?title=${encodeURIComponent(item.title)}`);
+          if (movieRes.ok) {
+            const movieData = await movieRes.json();
+            return { id: item.id, movie: movieData };
+          }
+          return null;
+        });
+
+        const fetchedMovies = await Promise.all(movieRequests);
+        const movieMap: Record<string, Movie> = {};
+        fetchedMovies.forEach((entry) => {
+          if (entry) {
+            movieMap[entry.id] = entry.movie;
+          }
+        });
+        setMovies(movieMap);
+        toast("Finished getting recommendations and movie data.")
+      } catch (err) {
+        console.error("Error fetching recommendations:", err);
+      }
+      finally {
+        setLoading(false);
+      }
+    };
+
+    fetchData();
+  }, [selectedUser]);
+
+  return (
+    <main className="container mx-auto p-8 space-y-8">
+      {/* Hero Section */}
+      <Card className="p-6 rounded-2xl shadow-lg">
+        <div className="grid grid-cols-12 gap-6">
+          <section className="space-y-4 col-span-8">
+            <h1 className="text-4xl font-bold">🎬 Movie Recommendation System</h1>
+            <p className="text-lg text-zinc-600">
+              Discover personalized movie recommendations powered by{" "}
+              <strong>Collaborative Filtering</strong>. The system leverages{" "}
+              <strong>Matrix Factorization</strong> and{" "}
+              <strong>Cosine Similarity</strong> to generate high-quality
+              recommendations.
+            </p>
+          </section>
+          <section className="col-span-4">
+            <CardHeader>
+              <CardTitle className="text-2xl font-bold">Hybrid Recommender</CardTitle>
+              <CardDescription>
+                Select a user to view personalized recommendations
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="mt-2">
+              <Select value={selectedUser} onValueChange={(value) => setSelectedUser(value)}>
+                <SelectTrigger className="w-[300px]">
+                  <SelectValue placeholder="Select a user" />
+                </SelectTrigger>
+                <SelectContent>
+                  {users.map((user) => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.name} ({user.email})
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </CardContent>
+          </section>
         </div>
-      </main>
-      <footer className="row-start-3 flex gap-[24px] flex-wrap items-center justify-center">
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/file.svg"
-            alt="File icon"
-            width={16}
-            height={16}
-          />
-          Learn
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/window.svg"
-            alt="Window icon"
-            width={16}
-            height={16}
-          />
-          Examples
-        </a>
-        <a
-          className="flex items-center gap-2 hover:underline hover:underline-offset-4"
-          href="https://nextjs.org?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-          target="_blank"
-          rel="noopener noreferrer"
-        >
-          <Image
-            aria-hidden
-            src="/globe.svg"
-            alt="Globe icon"
-            width={16}
-            height={16}
-          />
-          Go to nextjs.org →
-        </a>
-      </footer>
+      </Card>
+
+      {/* Recommendations */}
+      <div className="space-y-4">
+      {loading && 
+      <div className="flex flex-col items-center justify-center p-6 rounded-2xl shadow-lg text-zinc-500 w-full">
+      
+        <div className="flex items-center gap-2">
+          <Loader2 className="animate-spin h-6 w-6 text-zinc-900" />
+          <span className="text-lg">Fetching movie details...</span>
+        </div>
     </div>
+}
+
+<div>
+        <h2 className="text-xl font-semibold mb-2">Recommended Movies</h2>
+        {recs.length === 0 || loading ? (
+          <p className="text-muted-foreground">No recommendations yet.</p>
+        ) : (
+
+          
+          <div className="grid gap-6 sm:grid-cols-2 lg:grid-cols-4">
+            {recs.map((r, idx) => {
+              const item = items.find((it) => it.id === r.itemId);
+              const movie = item ? movies[item.id] : null;
+              return (
+                <Card
+                  key={r.itemId}
+                  className="rounded-2xl shadow-md hover:shadow-lg transition-shadow pt-0"
+                >
+                  {movie?.poster && (
+                    <img
+                      src={movie.poster}
+                      alt={movie.title}
+                      className="rounded-t-2xl w-full h-64 object-cover"
+                    />
+                  )}
+                  <CardHeader>
+                    <CardTitle>
+                      {idx + 1}. {movie ? movie.title : item?.title || `Item ${r.itemId}`}
+                    </CardTitle>
+                    <CardDescription>Score: {r.score.toFixed(2)}</CardDescription>
+                  </CardHeader>
+                  <CardContent>
+                    {movie && (
+                      <div className="space-y-2">
+                        {/* <p className="text-sm text-gray-700 hidden">{movie.description}</p> */}
+                        <p className="text-xs text-gray-500">
+                          Release: {movie.release_date} | ⭐ {movie.rating}
+                        </p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+              );
+            })}
+          </div>
+        )}
+      </div>
+                </div>
+
+    </main>
   );
 }
