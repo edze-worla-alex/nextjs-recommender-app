@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import type { Item, User } from "@prisma/client";
+import Image from "next/image"; // Import the Image component
 import {
   Card,
   CardHeader,
@@ -179,10 +180,12 @@ export default function Home() {
                   className="rounded-2xl shadow-md hover:shadow-lg transition-shadow pt-0"
                 >
                   {movie?.poster && (
-                    <img
+                    <Image
                       src={movie.poster}
                       alt={movie.title}
-                      className="rounded-t-2xl w-full h-64 object-cover"
+                      width={500}
+                      height={500}
+                      className="rounded-t-2xl w-full h-60 object-cover"
                     />
                   )}
                   <CardHeader>
