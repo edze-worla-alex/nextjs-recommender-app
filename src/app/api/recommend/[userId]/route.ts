@@ -7,9 +7,9 @@ const prisma = new PrismaClient();
 
 export async function GET(
   req: Request,
-  { params }: { params: { userId: string } }
+  context: { params: Promise<{ userId: string }> }
 ) {
-  const {userId} = await params;
+  const {userId} = await context.params;
 
   const users = await prisma.user.findMany();
   const items = await prisma.item.findMany();

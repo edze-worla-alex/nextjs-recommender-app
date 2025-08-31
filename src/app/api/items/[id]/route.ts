@@ -1,5 +1,4 @@
 // src/app/api/items/[id]/route.ts
-
 import { NextResponse } from "next/server";
 import { PrismaClient } from "@prisma/client";
 
@@ -7,13 +6,13 @@ const prisma = new PrismaClient();
 
 export async function GET(
   req: Request,
-  { params }: { params: { id: string } }
+  context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await params;
-
   try {
+    const { id } = await context.params; // 👈 await the params here
+
     const item = await prisma.item.findUnique({
-      where: { id: id },
+      where: { id },
     });
 
     if (!item) {
@@ -23,6 +22,6 @@ export async function GET(
     return NextResponse.json(item);
   } catch (error) {
     console.error(error);
-    return NextResponse.json({ error: "Failed to fetch item" }, { status: 500 });
+    return NextResponse.json({ error: "Server error" }, { status: 500 });
   }
 }
