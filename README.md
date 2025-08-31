@@ -290,4 +290,4 @@ This project is licensed under the **MIT License**.
 
 ## 📧 Support
 
-For questions or support, please open an issue on GitHub or contact [@Terminalien](https://github.com/edze-worla-alex).
+For questions or support, please open an issue on GitHub or contact [@softryve](https://github.com/edze-worla-alex).
